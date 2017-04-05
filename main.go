@@ -98,8 +98,8 @@ func main() {
 
 Name:           kompose
 Version:        ` + version + `
-Release:        0.1.git%{shortcommit}%{?dist}
-Summary:        Tool to move from 'docker-compose to Kubernetes
+Release:        0.1%{?dist}
+Summary:        Tool to move from 'docker-compose' to Kubernetes
 License:        ASL 2.0
 URL:            https://%{provider_prefix}
 Source0:        https://%{provider_prefix}/archive/%{commit}/%{repo}-%{shortcommit}.tar.gz
@@ -146,6 +146,7 @@ Requires: git
 	for i, line := range lines {
 		if line == stopString {
 			startBlock := append(lines[:i], withBundled...)
+			startBlock = append(startBlock, "")
 			lines = append(startBlock, lines[i:]...)
 		}
 	}
@@ -154,6 +155,18 @@ Requires: git
 		with string
 		what []string
 	}{
+		{
+			`%if 0%{?with_check} && ! 0%{?with_bundled}`,
+			[]string{`# devel subpackage BuildRequires`, `%if 0%{?with_check} && ! 0%{?with_bundled}`, `# These buildrequires are only for our tests (check)`},
+		},
+		{
+			`%build`,
+			[]string{`%build`, `# set up temporary build gopath in pwd`},
+		},
+		{
+			`%check`,
+			[]string{`# check uses buildroot macro so that unit-tests can be run over the`, `# files that are about to be installed with the rpm.`, `%check`},
+		},
 		{
 			`#%gobuild -o bin/ %{import_path}/`,
 			[]string{`export LDFLAGS=%{ldflags}`, `%gobuild %{buildflags} -o bin/kompose %{import_path}/`},
