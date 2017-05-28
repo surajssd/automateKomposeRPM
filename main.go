@@ -92,7 +92,7 @@ func main() {
 # were taken from script/.build and the testflags were taken from
 # script/test-unit. We will need to periodically check these for
 # consistency.
-%global ldflags "-w -X github.com/kubernetes-incubator/kompose/version.GITCOMMIT=%{shortcommit}"
+%global ldflags "-w -X github.com/kubernetes-incubator/kompose/cmd.GITCOMMIT=%{shortcommit}"
 %global buildflags %nil
 %global testflags -race -cover -v
 
@@ -169,11 +169,21 @@ Requires: git
 		},
 		{
 			`#%gobuild -o bin/ %{import_path}/`,
-			[]string{`export LDFLAGS=%{ldflags}`, `%gobuild %{buildflags} -o bin/kompose %{import_path}/`},
+			[]string{`export LDFLAGS=%{ldflags}`,
+				`%gobuild %{buildflags} -o bin/kompose %{import_path}/`,
+				``,
+				`bin/kompose completion zsh > kompose.zsh`,
+				`bin/kompose completion bash > kompose.bash`},
 		},
 		{
 			`#install -p -m 0755 bin/ %{buildroot}%{_bindir}`,
-			[]string{`install -p -m 0755 bin/kompose %{buildroot}%{_bindir}`},
+			[]string{`install -p -m 0755 bin/kompose %{buildroot}%{_bindir}`,
+				``,
+				`install -d -p $RPM_BUILD_ROOT%{_datadir}/zsh/site-functions`,
+				`install -p -m 0644 kompose.zsh $RPM_BUILD_ROOT%{_datadir}/zsh/site-functions/kompose`,
+				``,
+				`install -d -p $RPM_BUILD_ROOT%{_datadir}/bash-completion/completions`,
+				`install -p -m 0644 kompose.bash $RPM_BUILD_ROOT%{_datadir}/bash-completion/completions/kompose`},
 		},
 		{
 			`%global gotest go test`,
@@ -204,7 +214,9 @@ Requires: git
 		},
 		{
 			`#%{_bindir}/`,
-			[]string{`%{_bindir}/kompose`},
+			[]string{`%{_bindir}/kompose`,
+				`%{_datadir}/zsh/site-functions`,
+				`%{_datadir}/bash-completion/completions`},
 		},
 	}
 
