@@ -36,7 +36,7 @@ func main() {
 	flag.Parse()
 
 	log.Println("Creating spec file")
-	createSpec := fmt.Sprintf("/home/hummer/git/gofed/hack/gofed.sh repo2spec --detect github.com/kubernetes-incubator/kompose --commit %s --with-extra --with-build -f", commit)
+	createSpec := fmt.Sprintf("/home/hummer/git/gofed/hack/gofed.sh repo2spec --detect github.com/kubernetes/kompose --commit %s --with-extra --with-build -f", commit)
 	_, err := runCmd(createSpec)
 	if err != nil {
 		log.Fatal(err)
@@ -80,9 +80,9 @@ func main() {
 
 %global provider        github
 %global provider_tld    com
-%global project         kubernetes-incubator
+%global project         kubernetes
 %global repo            kompose
-# https://github.com/kubernetes-incubator/kompose
+# https://github.com/kubernetes/kompose
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 %global commit          ` + commit + `
@@ -92,7 +92,7 @@ func main() {
 # were taken from script/.build and the testflags were taken from
 # script/test-unit. We will need to periodically check these for
 # consistency.
-%global ldflags "-w -X github.com/kubernetes-incubator/kompose/cmd.GITCOMMIT=%{shortcommit}"
+%global ldflags "-w -X github.com/kubernetes/kompose/cmd.GITCOMMIT=%{shortcommit}"
 %global buildflags %nil
 %global testflags -race -cover -v
 
@@ -112,11 +112,16 @@ BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 # Adding dependecy as 'git'
 Requires: git
 
+# Adding dependency as 'docker'
+%if 0%{?fedora}
+Recommends: docker
+%endif
+
 # Main package BuildRequires`
 	//stopString := "%global provider        github"
 	stopString := "%if ! 0%{?with_bundled}"
 
-	data, err := ioutil.ReadFile("golang-github-kubernetes-incubator-kompose/golang-github-kubernetes-incubator-kompose.spec")
+	data, err := ioutil.ReadFile("golang-github-kubernetes-kompose/golang-github-kubernetes-kompose.spec")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -131,7 +136,7 @@ Requires: git
 	lines = append(strings.Split(globals, "\n"), lines...)
 
 	// download glide.lock file and parse it
-	url := "https://raw.githubusercontent.com/kubernetes-incubator/kompose/" + commit + "/glide.lock"
+	url := "https://raw.githubusercontent.com/kubernetes/kompose/" + commit + "/glide.lock"
 	data, err = downloadFile(url)
 	if err != nil {
 		log.Fatalln(err)
