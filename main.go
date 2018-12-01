@@ -1,15 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
 
+	"github.com/pkg/errors"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -35,14 +37,16 @@ func main() {
 	flag.StringVar(&version, "version", "", "Version of the current release")
 	flag.Parse()
 
-	log.Println("Creating spec file")
+	writeToErr("Creating spec file using gofed...")
 	createSpec := fmt.Sprintf("/home/hummer/git/gofed/hack/gofed.sh repo2spec --detect github.com/kubernetes/kompose --commit %s --with-extra --with-build -f", commit)
-	_, err := runCmd(createSpec)
+	// _, err := runCmd(createSpec)
+	err := execCmd(createSpec)
 	if err != nil {
-		log.Fatal(err)
+		writeToErr(errors.Wrapf(err, "error running gofed"))
+		os.Exit(1)
 	}
 
-	log.Println("Editing it")
+	writeToErr("Editing spec file...")
 	globals := `%if 0%{?fedora} || 0%{?rhel} == 6
 # Not all devel deps exist in Fedora so you can't
 # install the devel rpm so we need to build without
@@ -123,7 +127,8 @@ Recommends: docker
 
 	data, err := ioutil.ReadFile("golang-github-kubernetes-kompose/golang-github-kubernetes-kompose.spec")
 	if err != nil {
-		log.Fatalln(err)
+		writeToErr(err)
+		os.Exit(1)
 	}
 	lines := strings.Split(string(data), "\n")
 
@@ -139,12 +144,14 @@ Recommends: docker
 	url := "https://raw.githubusercontent.com/kubernetes/kompose/" + commit + "/glide.lock"
 	data, err = downloadFile(url)
 	if err != nil {
-		log.Fatalln(err)
+		writeToErr(err)
+		os.Exit(1)
 	}
 
 	withBundled, err := parseGlideDeps(data)
 	if err != nil {
-		log.Fatalln(err)
+		writeToErr(err)
+		os.Exit(1)
 	}
 
 	stopString = `%description`
@@ -224,6 +231,7 @@ Recommends: docker
 				`%{_datadir}/bash-completion/completions`},
 		},
 	}
+	writeToErr("Done editing spec file.")
 
 	for _, d := range mapping {
 		lines = replace(d.with, d.what, lines)
@@ -232,18 +240,45 @@ Recommends: docker
 	fmt.Println(strings.Join(lines, "\n"))
 }
 
-func runCmd(cmd string) (string, error) {
-	command := strings.Split(cmd, " ")
-	cmdName := command[0]
-	cmdArgs := command[1:]
+func writeToErr(a ...interface{}) {
+	fmt.Fprintln(os.Stderr, a...)
+}
 
-	var cmdOut []byte
-	var err error
+func execCmd(command string) error {
+	args := strings.Split(command, " ")
 
-	if cmdOut, err = exec.Command(cmdName, cmdArgs...).Output(); err != nil {
-		return "", err
+	if _, err := exec.LookPath(args[0]); err != nil {
+		return errors.Wrapf(err, "%s not found in PATH", args[0])
 	}
-	return string(cmdOut), nil
+
+	// docker build current directory
+	cmdName := args[0]
+	cmdArgs := args[1:]
+
+	cmd := exec.Command(cmdName, cmdArgs...)
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("error creating StdoutPipe for Cmd: %v", err)
+	}
+
+	scanner := bufio.NewScanner(cmdReader)
+	go func() {
+		for scanner.Scan() {
+			// fmt.Printf("docker build out | %s\n", scanner.Text())
+			writeToErr(scanner.Text())
+		}
+	}()
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting Cmd: %v", err)
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("error waiting for Cmd: %v", err)
+	}
+	return nil
 }
 
 func replace(what string, with []string, in []string) []string {
